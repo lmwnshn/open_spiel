@@ -21,6 +21,8 @@
 #include <string>
 #include <vector>
 
+#include <pqxx/pqxx>
+
 #include "open_spiel/spiel.h"
 
 // Simple game of Noughts and Crosses:

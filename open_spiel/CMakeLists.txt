@@ -187,6 +187,7 @@ link_libraries(open_spiel_core
   absl::str_format
   absl::strings
   absl::time
+  pqxx
 )
 
 # Just the minimal base library: no games.

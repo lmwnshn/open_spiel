@@ -78,6 +78,15 @@ std::string StateToString(CellState state) {
 }
 
 void DbState::DoApplyAction(Action move) {
+  pqxx::connection conn("host=127.0.0.1 port=5432 dbname=spiel user=spiel password=spiel sslmode=disable application_name=psql");
+  pqxx::work txn1(conn);
+  pqxx::result rset{txn1.exec("explain select * from foo")};
+  for (const auto &row: rset) {
+    for (const auto &field: row) {
+      std::cout << field << std::endl;
+    }
+  }
+
   SPIEL_CHECK_EQ(board_[move], CellState::kEmpty);
   board_[move] = PlayerToState(CurrentPlayer());
   if (HasLine(current_player_)) {
