@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef OPEN_SPIEL_GAMES_TIC_TAC_TOE_H_
-#define OPEN_SPIEL_GAMES_TIC_TAC_TOE_H_
+#ifndef OPEN_SPIEL_GAMES_DBdbdbDB_H_
+#define OPEN_SPIEL_GAMES_DB_H_
 
 #include <array>
 #include <map>
@@ -29,7 +29,7 @@
 // Parameters: none
 
 namespace open_spiel {
-namespace tic_tac_toe {
+namespace db {
 
 // Constants.
 inline constexpr int kNumPlayers = 2;
@@ -38,7 +38,7 @@ inline constexpr int kNumCols = 3;
 inline constexpr int kNumCells = kNumRows * kNumCols;
 inline constexpr int kCellStates = 1 + kNumPlayers;  // empty, 'x', and 'o'.
 
-// https://math.stackexchange.com/questions/485752/tictactoe-state-space-choose-calculation/485852
+// https://math.stackexchange.com/questions/485752/Db-state-space-choose-calculation/485852
 inline constexpr int kNumberStates = 5478;
 
 // State of a cell.
@@ -49,12 +49,12 @@ enum class CellState {
 };
 
 // State of an in-play game.
-class TicTacToeState : public State {
+class DbState : public State {
  public:
-  TicTacToeState(std::shared_ptr<const Game> game);
+  DbState(std::shared_ptr<const Game> game);
 
-  TicTacToeState(const TicTacToeState&) = default;
-  TicTacToeState& operator=(const TicTacToeState&) = default;
+  DbState(const DbState&) = default;
+  DbState& operator=(const DbState&) = default;
 
   Player CurrentPlayer() const override {
     return IsTerminal() ? kTerminalPlayerId : current_player_;
@@ -88,12 +88,12 @@ class TicTacToeState : public State {
 };
 
 // Game object.
-class TicTacToeGame : public Game {
+class DbGame : public Game {
  public:
-  explicit TicTacToeGame(const GameParameters& params);
+  explicit DbGame(const GameParameters& params);
   int NumDistinctActions() const override { return kNumCells; }
   std::unique_ptr<State> NewInitialState() const override {
-    return std::unique_ptr<State>(new TicTacToeState(shared_from_this()));
+    return std::unique_ptr<State>(new DbState(shared_from_this()));
   }
   int NumPlayers() const override { return kNumPlayers; }
   double MinUtility() const override { return -1; }
@@ -112,7 +112,7 @@ inline std::ostream& operator<<(std::ostream& stream, const CellState& state) {
   return stream << StateToString(state);
 }
 
-}  // namespace tic_tac_toe
+}  // namespace db
 }  // namespace open_spiel
 
-#endif  // OPEN_SPIEL_GAMES_TIC_TAC_TOE_H_
+#endif  // OPEN_SPIEL_GAMES_DB_H_

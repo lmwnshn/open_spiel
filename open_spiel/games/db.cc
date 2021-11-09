@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "open_spiel/games/tic_tac_toe.h"
+#include "open_spiel/games/db.h"
 
 #include <algorithm>
 #include <memory>
@@ -23,13 +23,13 @@
 #include "open_spiel/utils/tensor_view.h"
 
 namespace open_spiel {
-namespace tic_tac_toe {
+namespace db {
 namespace {
 
 // Facts about the game.
 const GameType kGameType{
-    /*short_name=*/"tic_tac_toe",
-    /*long_name=*/"Tic Tac Toe",
+    /*short_name=*/"db",
+    /*long_name=*/"DB",
     GameType::Dynamics::kSequential,
     GameType::ChanceMode::kDeterministic,
     GameType::Information::kPerfectInformation,
@@ -45,7 +45,7 @@ const GameType kGameType{
 };
 
 std::shared_ptr<const Game> Factory(const GameParameters& params) {
-  return std::shared_ptr<const Game>(new TicTacToeGame(params));
+  return std::shared_ptr<const Game>(new DbGame(params));
 }
 
 REGISTER_SPIEL_GAME(kGameType, Factory);
@@ -77,7 +77,7 @@ std::string StateToString(CellState state) {
   }
 }
 
-void TicTacToeState::DoApplyAction(Action move) {
+void DbState::DoApplyAction(Action move) {
   SPIEL_CHECK_EQ(board_[move], CellState::kEmpty);
   board_[move] = PlayerToState(CurrentPlayer());
   if (HasLine(current_player_)) {
@@ -87,7 +87,7 @@ void TicTacToeState::DoApplyAction(Action move) {
   num_moves_ += 1;
 }
 
-std::vector<Action> TicTacToeState::LegalActions() const {
+std::vector<Action> DbState::LegalActions() const {
   if (IsTerminal()) return {};
   // Can move in any empty cell.
   std::vector<Action> moves;
@@ -99,13 +99,13 @@ std::vector<Action> TicTacToeState::LegalActions() const {
   return moves;
 }
 
-std::string TicTacToeState::ActionToString(Player player,
+std::string DbState::ActionToString(Player player,
                                            Action action_id) const {
   return absl::StrCat(StateToString(PlayerToState(player)), "(",
                       action_id / kNumCols, ",", action_id % kNumCols, ")");
 }
 
-bool TicTacToeState::HasLine(Player player) const {
+bool DbState::HasLine(Player player) const {
   CellState c = PlayerToState(player);
   return (board_[0] == c && board_[1] == c && board_[2] == c) ||
          (board_[3] == c && board_[4] == c && board_[5] == c) ||
@@ -117,13 +117,13 @@ bool TicTacToeState::HasLine(Player player) const {
          (board_[2] == c && board_[4] == c && board_[6] == c);
 }
 
-bool TicTacToeState::IsFull() const { return num_moves_ == kNumCells; }
+bool DbState::IsFull() const { return num_moves_ == kNumCells; }
 
-TicTacToeState::TicTacToeState(std::shared_ptr<const Game> game) : State(game) {
+DbState::DbState(std::shared_ptr<const Game> game) : State(game) {
   std::fill(begin(board_), end(board_), CellState::kEmpty);
 }
 
-std::string TicTacToeState::ToString() const {
+std::string DbState::ToString() const {
   std::string str;
   for (int r = 0; r < kNumRows; ++r) {
     for (int c = 0; c < kNumCols; ++c) {
@@ -136,11 +136,11 @@ std::string TicTacToeState::ToString() const {
   return str;
 }
 
-bool TicTacToeState::IsTerminal() const {
+bool DbState::IsTerminal() const {
   return outcome_ != kInvalidPlayer || IsFull();
 }
 
-std::vector<double> TicTacToeState::Returns() const {
+std::vector<double> DbState::Returns() const {
   if (HasLine(Player{0})) {
     return {1.0, -1.0};
   } else if (HasLine(Player{1})) {
@@ -150,19 +150,19 @@ std::vector<double> TicTacToeState::Returns() const {
   }
 }
 
-std::string TicTacToeState::InformationStateString(Player player) const {
+std::string DbState::InformationStateString(Player player) const {
   SPIEL_CHECK_GE(player, 0);
   SPIEL_CHECK_LT(player, num_players_);
   return HistoryString();
 }
 
-std::string TicTacToeState::ObservationString(Player player) const {
+std::string DbState::ObservationString(Player player) const {
   SPIEL_CHECK_GE(player, 0);
   SPIEL_CHECK_LT(player, num_players_);
   return ToString();
 }
 
-void TicTacToeState::ObservationTensor(Player player,
+void DbState::ObservationTensor(Player player,
                                        absl::Span<float> values) const {
   SPIEL_CHECK_GE(player, 0);
   SPIEL_CHECK_LT(player, num_players_);
@@ -174,7 +174,7 @@ void TicTacToeState::ObservationTensor(Player player,
   }
 }
 
-void TicTacToeState::UndoAction(Player player, Action move) {
+void DbState::UndoAction(Player player, Action move) {
   board_[move] = CellState::kEmpty;
   current_player_ = player;
   outcome_ = kInvalidPlayer;
@@ -183,12 +183,12 @@ void TicTacToeState::UndoAction(Player player, Action move) {
   --move_number_;
 }
 
-std::unique_ptr<State> TicTacToeState::Clone() const {
-  return std::unique_ptr<State>(new TicTacToeState(*this));
+std::unique_ptr<State> DbState::Clone() const {
+  return std::unique_ptr<State>(new DbState(*this));
 }
 
-TicTacToeGame::TicTacToeGame(const GameParameters& params)
+DbGame::DbGame(const GameParameters& params)
     : Game(kGameType, params) {}
 
-}  // namespace tic_tac_toe
+}  // namespace db
 }  // namespace open_spiel
