@@ -21,7 +21,7 @@
 #include "open_spiel/spiel.h"
 #include "open_spiel/spiel_utils.h"
 
-ABSL_FLAG(std::string, game_name, "kuhn_poker", "Game to run CFR on.");
+ABSL_FLAG(std::string, game_name, "db", "Game to run CFR on.");
 ABSL_FLAG(int, num_iters, 1000, "How many iters to run for.");
 ABSL_FLAG(int, report_every, 100, "How often to report exploitability.");
 
