@@ -7,15 +7,15 @@ add_library (bots OBJECT
   uci/uci_bot.h
 )
 
-add_subdirectory(gin_rummy)
+#add_subdirectory(gin_rummy)
 add_subdirectory(human)
-add_subdirectory(uci)
-
-if (OPEN_SPIEL_BUILD_WITH_ROSHAMBO)
-  add_subdirectory(roshambo)
-endif()
-
-if (OPEN_SPIEL_BUILD_WITH_XINXIN)
-  add_subdirectory(xinxin)
-endif()
-
+#add_subdirectory(uci)
+#
+#if (OPEN_SPIEL_BUILD_WITH_ROSHAMBO)
+#  add_subdirectory(roshambo)
+#endif()
+#
+#if (OPEN_SPIEL_BUILD_WITH_XINXIN)
+#  add_subdirectory(xinxin)
+#endif()
+#
