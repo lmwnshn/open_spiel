@@ -50,6 +50,8 @@ enum class CellState {
   kCross,
 };
 
+class DbGame;
+
 // State of an in-play game.
 class DbState : public State {
  public:
@@ -79,6 +81,7 @@ class DbState : public State {
 
  protected:
   std::array<CellState, kNumCells> board_;
+
   void DoApplyAction(Action move) override;
 
  private:
@@ -87,6 +90,29 @@ class DbState : public State {
   Player current_player_ = 0;         // Player zero goes first
   Player outcome_ = kInvalidPlayer;
   int num_moves_ = 0;
+
+  std::shared_ptr<const DbGame> game_;
+};
+
+class Txn {
+ public:
+  virtual const std::string &GetSQL() = 0;
+};
+
+class SingleQueryTxn : public Txn {
+ public:
+  SingleQueryTxn(std::string sql) : sql_(std::move(sql)) {}
+  const std::string &GetSQL() override { return sql_; }
+ private:
+  const std::string sql_;
+};
+
+class TuningAction {
+ public:
+  TuningAction(std::string sql) : sql_(std::move(sql)) {}
+  const std::string &GetSQL() const { return sql_; }
+ private:
+  const std::string sql_;
 };
 
 // Game object.
@@ -105,6 +131,13 @@ class DbGame : public Game {
     return {kCellStates, kNumRows, kNumCols};
   }
   int MaxGameLength() const override { return kNumCells; }
+
+  const std::vector<std::unique_ptr<Txn>> &GetClientActions() const { return client_; }
+  const std::vector<std::unique_ptr<TuningAction>> &GetServerActions() const { return server_; }
+
+ private:
+  std::vector<std::unique_ptr<Txn>> client_;
+  std::vector<std::unique_ptr<TuningAction>> server_;
 };
 
 CellState PlayerToState(Player player);

@@ -27,6 +27,14 @@ namespace open_spiel {
 namespace db {
 namespace {
 
+bool IsClient(const Player player) {
+  return player == 0;
+}
+
+bool IsServer(const Player player) {
+  return player == 1;
+}
+
 struct EstCost {
   public:
     EstCost(const std::string &explain_str) {
@@ -117,6 +125,18 @@ void DbState::DoApplyAction(Action move) {
     }
   }
 
+  const auto &client_actions = game_->GetClientActions();
+  const auto &server_actions = game_->GetClientActions();
+  for (const auto &player_action : history_) {
+    const Action action = player_action.action;
+    if (IsClient(player_action.player)) {
+      std::cout << client_actions[action]->GetSQL() << std::endl;
+    } else {
+      SPIEL_CHECK_TRUE(IsServer(player_action.player));
+      std::cout << server_actions[action]->GetSQL() << std::endl;
+    }
+  }
+
   SPIEL_CHECK_EQ(board_[move], CellState::kEmpty);
   board_[move] = PlayerToState(CurrentPlayer());
   if (HasLine(current_player_)) {
@@ -128,6 +148,15 @@ void DbState::DoApplyAction(Action move) {
 
 std::vector<Action> DbState::LegalActions() const {
   if (IsTerminal()) return {};
+  std::cout << "legal actions for " << current_player_ << std::endl;
+
+  if (IsServer(current_player_)) {
+    std::cout << "SERVER ACTIONS" << std::endl;
+  } else {
+    SPIEL_CHECK_TRUE(IsClient(current_player_));
+    std::cout << "CLIENT ACTIONS" << std::endl;
+  }
+
   // Can move in any empty cell.
   std::vector<Action> moves;
   for (int cell = 0; cell < kNumCells; ++cell) {
@@ -158,7 +187,7 @@ bool DbState::HasLine(Player player) const {
 
 bool DbState::IsFull() const { return num_moves_ == kNumCells; }
 
-DbState::DbState(std::shared_ptr<const Game> game) : State(game) {
+DbState::DbState(std::shared_ptr<const Game> game) : State(game), game_(std::dynamic_pointer_cast<const DbGame>(game)) {
   std::fill(begin(board_), end(board_), CellState::kEmpty);
 }
 
@@ -227,7 +256,13 @@ std::unique_ptr<State> DbState::Clone() const {
 }
 
 DbGame::DbGame(const GameParameters& params)
-    : Game(kGameType, params) {}
+    : Game(kGameType, params) {
+  client_.emplace_back(std::make_unique<SingleQueryTxn>("select a from foo where a = 5"));
+  client_.emplace_back(std::make_unique<SingleQueryTxn>("select a from foo where a = 10"));
+
+  server_.emplace_back(std::make_unique<TuningAction>("select a from foo where a = 5"));
+  server_.emplace_back(std::make_unique<TuningAction>("select a from foo where a = 10"));
+}
 
 }  // namespace db
 }  // namespace open_spiel
