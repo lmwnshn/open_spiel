@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef OPEN_SPIEL_GAMES_DBdbdbDB_H_
+#ifndef OPEN_SPIEL_GAMES_DB_H_
 #define OPEN_SPIEL_GAMES_DB_H_
 
 #include <array>
