@@ -43,6 +43,8 @@ set(GAME_SOURCES
   dark_chess.h
   dark_hex.cc
   dark_hex.h
+  db.cc
+  db.h
   deep_sea.cc
   deep_sea.h
   efg_game.cc
