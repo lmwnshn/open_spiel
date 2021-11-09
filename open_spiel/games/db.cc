@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <regex>
 #include <utility>
 #include <vector>
 
@@ -25,6 +26,35 @@
 namespace open_spiel {
 namespace db {
 namespace {
+
+struct EstCost {
+  public:
+    EstCost(const std::string &explain_str) {
+      const std::regex REGEXP{".*\\(cost=(\\d+\\.?\\d+)\\.\\.(\\d+\\.?\\d+) rows=(\\d+) width=(\\d+)\\)"};
+      std::smatch matches;
+      if (std::regex_match(explain_str, matches, REGEXP)) {
+        startup_cost_ = std::stod(matches[1].str());
+        total_cost_ = std::stod(matches[2].str());
+        num_rows_ = std::stod(matches[3].str());
+        width_ = std::stod(matches[4].str());
+      }
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, const EstCost& cost) {
+      os << "[Est(";
+      os << cost.startup_cost_ << ',';
+      os << cost.total_cost_ << ',';
+      os << cost.num_rows_ << ',';
+      os << cost.width_ << ")]";
+      return os;
+    }
+
+  private:
+    double startup_cost_;
+    double total_cost_;
+    long num_rows_;
+    long width_;
+};
 
 // Facts about the game.
 const GameType kGameType{
@@ -83,7 +113,7 @@ void DbState::DoApplyAction(Action move) {
   pqxx::result rset{txn1.exec("explain select * from foo")};
   for (const auto &row: rset) {
     for (const auto &field: row) {
-      std::cout << field << std::endl;
+      std::cout << EstCost(pqxx::to_string(field)) << std::endl;
     }
   }
 
