@@ -234,8 +234,7 @@ std::vector<double> DbState::Returns() const {
       pqxx::result rset{txn.exec0(query)};
       auto t2 = std::chrono::high_resolution_clock::now();
       double time_ms = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
-      (void) time_ms;
-//      total_time += time_ms;
+      total_time += time_ms;
     }
   }
   return {total_time, -total_time};
@@ -268,7 +267,7 @@ DbGame::DbGame(const GameParameters& params)
     : Game(kGameType, params) {
   client_.emplace_back(std::make_unique<SingleQueryTxn>("select a from foo where a = 5"));
   client_.emplace_back(std::make_unique<SingleQueryTxn>("select a from foo where a = 10"));
-  //client_.emplace_back(std::make_unique<SingleQueryTxn>("select a from foo"));
+  client_.emplace_back(std::make_unique<SingleQueryTxn>("select a from foo"));
 
   server_.emplace_back(std::make_unique<TuningAction>("create index on foo (a)"));
   server_.emplace_back(std::make_unique<TuningAction>("create index on bar (a)"));
