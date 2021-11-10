@@ -16,6 +16,7 @@
 
 #include "open_spiel/abseil-cpp/absl/flags/flag.h"
 #include "open_spiel/abseil-cpp/absl/flags/parse.h"
+#include "open_spiel/abseil-cpp/absl/random/discrete_distribution.h"
 #include "open_spiel/algorithms/cfr.h"
 #include "open_spiel/algorithms/tabular_exploitability.h"
 #include "open_spiel/spiel.h"
@@ -23,7 +24,16 @@
 
 ABSL_FLAG(std::string, game_name, "db", "Game to run CFR on.");
 ABSL_FLAG(int, num_iters, 1000, "How many iters to run for.");
-ABSL_FLAG(int, report_every, 100, "How often to report exploitability.");
+ABSL_FLAG(int, report_every, 10, "How often to report exploitability.");
+
+void PrintLegalActions(const open_spiel::State& state,
+                       open_spiel::Player player,
+                       const std::vector<open_spiel::Action>& movelist) {
+  std::cerr << "Legal moves for player " << player << ":" << std::endl;
+  for (open_spiel::Action action : movelist) {
+    std::cerr << "  " << state.ActionToString(player, action) << std::endl;
+  }
+}
 
 // Example code for using CFR+ to solve Kuhn Poker.
 int main(int argc, char** argv) {
@@ -42,6 +52,45 @@ int main(int argc, char** argv) {
           *game, *solver.AveragePolicy());
       std::cerr << "Iteration " << i << " exploitability=" << exploitability
                 << std::endl;
+
+      std::mt19937 rng(time(0));
+      std::cerr << "NEW GAME WITH CURRENT POLICY" << std::endl;
+      std::unique_ptr<open_spiel::State> state = game->NewInitialState();
+
+      while (!state->IsTerminal()) {
+        // std::cerr << "player " << state->CurrentPlayer() << std::endl;
+
+        // Decision node, sample one uniformly.
+        auto player = state->CurrentPlayer();
+
+        std::vector<open_spiel::Action> actions = state->LegalActions();
+        // PrintLegalActions(*state, player, actions);
+        const auto &ap = solver.CurrentPolicy()->GetStatePolicy(*state);
+        std::vector<double> distribution;
+        for (const auto &ape : ap) {
+          distribution.emplace_back(ape.second);
+        }
+        absl::discrete_distribution<> dis(distribution.begin(), distribution.end());
+
+        auto action = actions[dis(rng)];
+
+        std::ostringstream ostr;
+        ostr << "distribution[";
+        for (const auto d : distribution) {
+          ostr << d << ',';
+        }
+        ostr << "]";
+        std::cerr << "\tChose action: " << state->ActionToString(player, action) << " " << ostr.str() << std::endl;
+
+        state->ApplyAction(action);
+      }
+
+      std::cerr << "\tState: " << state->ToString() << std::endl;
+
+      const auto &returns = state->Returns();
+      for (auto p = open_spiel::Player{0}; p < game->NumPlayers(); p++) {
+        std::cerr << "\tFinal return to player " << p << " is " << returns[p] << std::endl;
+      }
     }
   }
 }

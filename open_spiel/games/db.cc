@@ -15,10 +15,12 @@
 #include "open_spiel/games/db.h"
 
 #include <algorithm>
+#include <chrono>
 #include <memory>
 #include <regex>
 #include <utility>
 #include <vector>
+#include <stdexcept>
 
 #include "open_spiel/spiel_utils.h"
 #include "open_spiel/utils/tensor_view.h"
@@ -38,18 +40,21 @@ bool IsServer(const Player player) {
 struct EstCost {
   public:
     EstCost(const std::string &explain_str) {
-      const std::regex REGEXP{".*\\(cost=(\\d+\\.?\\d+)\\.\\.(\\d+\\.?\\d+) rows=(\\d+) width=(\\d+)\\)"};
       std::smatch matches;
+
+      const std::regex REGEXP{".*\\(cost=(\\d+\\.?\\d+)\\.\\.(\\d+\\.?\\d+) rows=(\\d+) width=(\\d+)\\)"};
       if (std::regex_match(explain_str, matches, REGEXP)) {
         startup_cost_ = std::stod(matches[1].str());
         total_cost_ = std::stod(matches[2].str());
-        num_rows_ = std::stod(matches[3].str());
-        width_ = std::stod(matches[4].str());
+        num_rows_ = std::stol(matches[3].str());
+        width_ = std::stol(matches[4].str());
+      } else {
+        throw std::runtime_error("EC: Bad explain str");
       }
     }
 
     friend std::ostream& operator<<(std::ostream& os, const EstCost& cost) {
-      os << "[Est(";
+      os << "[EC(";
       os << cost.startup_cost_ << ',';
       os << cost.total_cost_ << ',';
       os << cost.num_rows_ << ',';
@@ -57,11 +62,73 @@ struct EstCost {
       return os;
     }
 
-  private:
-    double startup_cost_;
-    double total_cost_;
-    long num_rows_;
-    long width_;
+  public:
+    double startup_cost_ = -1;
+    double total_cost_ = -1;
+    long num_rows_ = -1;
+    long width_ = -1;
+};
+
+struct TrueCost {
+  public:
+    TrueCost(const std::string &explain_str, const std::string &second_last_row, const std::string &last_row) {
+      std::smatch matches;
+
+      const std::regex REGEXP{".*\\(cost=(\\d+\\.?\\d+)\\.\\.(\\d+\\.?\\d+) rows=(\\d+) width=(\\d+)\\).*\\(actual time=(\\d+\\.?\\d+)\\.\\.(\\d+\\.?\\d+) rows=(\\d+) loops=(\\d+)\\)"};
+      if (std::regex_match(explain_str, matches, REGEXP)) {
+        startup_cost_ = std::stod(matches[1].str());
+        total_cost_ = std::stod(matches[2].str());
+        num_rows_ = std::stol(matches[3].str());
+        width_ = std::stol(matches[4].str());
+        actual_startup_time_ = std::stod(matches[5].str());
+        actual_total_time_ = std::stod(matches[6].str());
+        actual_num_rows_ = std::stol(matches[7].str());
+        actual_loops_ = std::stol(matches[8].str());
+      } else {
+        throw std::runtime_error("TC: Bad explain str");
+      }
+
+      const std::regex REGEXP_PLAN{"Planning Time: (\\d+\\.?\\d+) ms"};
+      if (std::regex_match(second_last_row, matches, REGEXP_PLAN)) {
+        actual_planning_time_ms_ = std::stod(matches[1].str());
+      } else {
+        throw std::runtime_error("TC: Bad planning time str");
+      }
+
+      const std::regex REGEXP_EXEC{"Execution Time: (\\d+\\.?\\d+) ms"};
+      if (std::regex_match(last_row, matches, REGEXP_EXEC)) {
+        actual_execution_time_ms_ = std::stod(matches[1].str());
+      } else {
+        throw std::runtime_error("TC: Bad execution time str");
+      }
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, const TrueCost& cost) {
+      os << "[TC(";
+      os << cost.startup_cost_ << ',';
+      os << cost.total_cost_ << ',';
+      os << cost.num_rows_ << ',';
+      os << cost.width_ << ',';
+      os << cost.actual_startup_time_ << ',';
+      os << cost.actual_total_time_ << ',';
+      os << cost.actual_num_rows_ << ',';
+      os << cost.actual_loops_ << ',';
+      os << cost.actual_planning_time_ms_ << ',';
+      os << cost.actual_execution_time_ms_ << ")]";
+      return os;
+    }
+
+  public:
+    double startup_cost_ = -1;
+    double total_cost_ = -1;
+    long num_rows_ = -1;
+    long width_ = -1;
+    double actual_startup_time_ = -1;
+    double actual_total_time_ = -1;
+    long actual_num_rows_ = -1;
+    long actual_loops_ = -1;
+    double actual_planning_time_ms_ = -1;
+    double actual_execution_time_ms_ = -1;
 };
 
 // Facts about the game.
@@ -78,7 +145,7 @@ const GameType kGameType{
     /*provides_information_state_string=*/true,
     /*provides_information_state_tensor=*/false,
     /*provides_observation_string=*/true,
-    /*provides_observation_tensor=*/true,
+    /*provides_observation_tensor=*/false,
     /*parameter_specification=*/{}  // no parameters
 };
 
@@ -90,132 +157,88 @@ REGISTER_SPIEL_GAME(kGameType, Factory);
 
 }  // namespace
 
-CellState PlayerToState(Player player) {
-  switch (player) {
-    case 0:
-      return CellState::kCross;
-    case 1:
-      return CellState::kNought;
-    default:
-      SpielFatalError(absl::StrCat("Invalid player id ", player));
-      return CellState::kEmpty;
-  }
-}
-
-std::string StateToString(CellState state) {
-  switch (state) {
-    case CellState::kEmpty:
-      return ".";
-    case CellState::kNought:
-      return "o";
-    case CellState::kCross:
-      return "x";
-    default:
-      SpielFatalError("Unknown state.");
-  }
-}
-
 void DbState::DoApplyAction(Action move) {
-  pqxx::connection conn("host=127.0.0.1 port=5432 dbname=spiel user=spiel password=spiel sslmode=disable application_name=psql");
-  pqxx::work txn1(conn);
-  pqxx::result rset{txn1.exec("explain select * from foo")};
-  for (const auto &row: rset) {
-    for (const auto &field: row) {
-      std::cout << EstCost(pqxx::to_string(field)) << std::endl;
-    }
-  }
-
-  const auto &client_actions = game_->GetClientActions();
-  const auto &server_actions = game_->GetClientActions();
-  for (const auto &player_action : history_) {
-    const Action action = player_action.action;
-    if (IsClient(player_action.player)) {
-      std::cout << client_actions[action]->GetSQL() << std::endl;
-    } else {
-      SPIEL_CHECK_TRUE(IsServer(player_action.player));
-      std::cout << server_actions[action]->GetSQL() << std::endl;
-    }
-  }
-
-  SPIEL_CHECK_EQ(board_[move], CellState::kEmpty);
-  board_[move] = PlayerToState(CurrentPlayer());
-  if (HasLine(current_player_)) {
-    outcome_ = current_player_;
-  }
   current_player_ = 1 - current_player_;
   num_moves_ += 1;
 }
 
 std::vector<Action> DbState::LegalActions() const {
   if (IsTerminal()) return {};
-  std::cout << "legal actions for " << current_player_ << std::endl;
+  std::vector<Action> moves;
+
+  const auto &ca = game_->GetClientActions();
+  const auto &sa = game_->GetServerActions();
 
   if (IsServer(current_player_)) {
-    std::cout << "SERVER ACTIONS" << std::endl;
+    moves.reserve(sa.size());
+    for (size_t i = 0 ; i < sa.size(); ++i) {
+      moves.emplace_back(i);
+    }
   } else {
     SPIEL_CHECK_TRUE(IsClient(current_player_));
-    std::cout << "CLIENT ACTIONS" << std::endl;
-  }
-
-  // Can move in any empty cell.
-  std::vector<Action> moves;
-  for (int cell = 0; cell < kNumCells; ++cell) {
-    if (board_[cell] == CellState::kEmpty) {
-      moves.push_back(cell);
+    moves.reserve(ca.size());
+    for (size_t i = 0 ; i < ca.size(); ++i) {
+      moves.emplace_back(i);
     }
   }
+
   return moves;
 }
 
+DbState::DbState(std::shared_ptr<const Game> game) : State(game), game_(std::dynamic_pointer_cast<const DbGame>(game)) {}
+
 std::string DbState::ActionToString(Player player,
-                                           Action action_id) const {
-  return absl::StrCat(StateToString(PlayerToState(player)), "(",
-                      action_id / kNumCols, ",", action_id % kNumCols, ")");
-}
-
-bool DbState::HasLine(Player player) const {
-  CellState c = PlayerToState(player);
-  return (board_[0] == c && board_[1] == c && board_[2] == c) ||
-         (board_[3] == c && board_[4] == c && board_[5] == c) ||
-         (board_[6] == c && board_[7] == c && board_[8] == c) ||
-         (board_[0] == c && board_[3] == c && board_[6] == c) ||
-         (board_[1] == c && board_[4] == c && board_[7] == c) ||
-         (board_[2] == c && board_[5] == c && board_[8] == c) ||
-         (board_[0] == c && board_[4] == c && board_[8] == c) ||
-         (board_[2] == c && board_[4] == c && board_[6] == c);
-}
-
-bool DbState::IsFull() const { return num_moves_ == kNumCells; }
-
-DbState::DbState(std::shared_ptr<const Game> game) : State(game), game_(std::dynamic_pointer_cast<const DbGame>(game)) {
-  std::fill(begin(board_), end(board_), CellState::kEmpty);
+                                    Action action_id) const {
+  const auto &ca = game_->GetClientActions();
+  const auto &sa = game_->GetServerActions();
+  const std::string &sql = IsClient(player) ? ca[action_id]->GetSQL() : sa[action_id]->GetSQL();
+  return absl::StrCat("Action(id=", action_id, ", player=", player, ", sql=", sql,  ")");
 }
 
 std::string DbState::ToString() const {
-  std::string str;
-  for (int r = 0; r < kNumRows; ++r) {
-    for (int c = 0; c < kNumCols; ++c) {
-      absl::StrAppend(&str, StateToString(BoardAt(r, c)));
-    }
-    if (r < (kNumRows - 1)) {
-      absl::StrAppend(&str, "\n");
-    }
+  std::stringstream output;
+  output << "History[";
+  for (const auto &pa : history_) {
+    output << pa << ",";
   }
-  return str;
+  output << "]";
+  return output.str();
 }
 
 bool DbState::IsTerminal() const {
-  return outcome_ != kInvalidPlayer || IsFull();
+  return num_moves_ >= game_->MaxGameLength() / 2;
 }
 
 std::vector<double> DbState::Returns() const {
-  if (HasLine(Player{0})) {
-    return {1.0, -1.0};
-  } else if (HasLine(Player{1})) {
-    return {-1.0, 1.0};
-  } else {
-    return {0.0, 0.0};
+  double total_time = 0;
+
+  pqxx::connection conn("host=127.0.0.1 port=5432 dbname=spiel user=spiel password=spiel sslmode=disable application_name=psql");
+  pqxx::work txn(conn);
+
+  const auto &client_actions = game_->GetClientActions();
+  const auto &server_actions = game_->GetServerActions();
+  for (const auto &player_action : history_) {
+    const Action action = player_action.action;
+    if (IsClient(player_action.player)) {
+      // Execute the client query.
+      std::string query = absl::StrCat("EXPLAIN (ANALYZE, BUFFERS) ", client_actions[action]->GetSQL());
+      pqxx::result rset{txn.exec(query)};
+      TrueCost tc{pqxx::to_string(rset[0][0]),
+                  pqxx::to_string(rset[rset.size() - 2][0]),
+                  pqxx::to_string(rset[rset.size() - 1][0])};
+      total_time += tc.actual_planning_time_ms_ + tc.actual_execution_time_ms_;
+    } else {
+      SPIEL_CHECK_TRUE(IsServer(player_action.player));
+      std::string query = server_actions[action]->GetSQL();
+      auto t1 = std::chrono::high_resolution_clock::now();
+      pqxx::result rset{txn.exec0(query)};
+      auto t2 = std::chrono::high_resolution_clock::now();
+      double time_ms = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
+      (void) time_ms;
+//      total_time += time_ms;
+    }
   }
+  return {total_time, -total_time};
 }
 
 std::string DbState::InformationStateString(Player player) const {
@@ -230,22 +253,8 @@ std::string DbState::ObservationString(Player player) const {
   return ToString();
 }
 
-void DbState::ObservationTensor(Player player,
-                                       absl::Span<float> values) const {
-  SPIEL_CHECK_GE(player, 0);
-  SPIEL_CHECK_LT(player, num_players_);
-
-  // Treat `values` as a 2-d tensor.
-  TensorView<2> view(values, {kCellStates, kNumCells}, true);
-  for (int cell = 0; cell < kNumCells; ++cell) {
-    view[{static_cast<int>(board_[cell]), cell}] = 1.0;
-  }
-}
-
 void DbState::UndoAction(Player player, Action move) {
-  board_[move] = CellState::kEmpty;
   current_player_ = player;
-  outcome_ = kInvalidPlayer;
   num_moves_ -= 1;
   history_.pop_back();
   --move_number_;
@@ -259,9 +268,10 @@ DbGame::DbGame(const GameParameters& params)
     : Game(kGameType, params) {
   client_.emplace_back(std::make_unique<SingleQueryTxn>("select a from foo where a = 5"));
   client_.emplace_back(std::make_unique<SingleQueryTxn>("select a from foo where a = 10"));
+  //client_.emplace_back(std::make_unique<SingleQueryTxn>("select a from foo"));
 
-  server_.emplace_back(std::make_unique<TuningAction>("select a from foo where a = 5"));
-  server_.emplace_back(std::make_unique<TuningAction>("select a from foo where a = 10"));
+  server_.emplace_back(std::make_unique<TuningAction>("create index on foo (a)"));
+  server_.emplace_back(std::make_unique<TuningAction>("create index on bar (a)"));
 }
 
 }  // namespace db

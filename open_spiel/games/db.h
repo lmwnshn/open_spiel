@@ -33,23 +33,6 @@
 namespace open_spiel {
 namespace db {
 
-// Constants.
-inline constexpr int kNumPlayers = 2;
-inline constexpr int kNumRows = 3;
-inline constexpr int kNumCols = 3;
-inline constexpr int kNumCells = kNumRows * kNumCols;
-inline constexpr int kCellStates = 1 + kNumPlayers;  // empty, 'x', and 'o'.
-
-// https://math.stackexchange.com/questions/485752/Db-state-space-choose-calculation/485852
-inline constexpr int kNumberStates = 5478;
-
-// State of a cell.
-enum class CellState {
-  kEmpty,
-  kNought,
-  kCross,
-};
-
 class DbGame;
 
 // State of an in-play game.
@@ -69,29 +52,19 @@ class DbState : public State {
   std::vector<double> Returns() const override;
   std::string InformationStateString(Player player) const override;
   std::string ObservationString(Player player) const override;
-  void ObservationTensor(Player player,
-                         absl::Span<float> values) const override;
   std::unique_ptr<State> Clone() const override;
   void UndoAction(Player player, Action move) override;
   std::vector<Action> LegalActions() const override;
-  CellState BoardAt(int cell) const { return board_[cell]; }
-  CellState BoardAt(int row, int column) const {
-    return board_[row * kNumCols + column];
-  }
 
  protected:
-  std::array<CellState, kNumCells> board_;
-
   void DoApplyAction(Action move) override;
 
  private:
-  bool HasLine(Player player) const;  // Does this player have a line?
-  bool IsFull() const;                // Is the board full?
   Player current_player_ = 0;         // Player zero goes first
-  Player outcome_ = kInvalidPlayer;
   int num_moves_ = 0;
 
   std::shared_ptr<const DbGame> game_;
+  std::set<Action> server_actions_;
 };
 
 class Txn {
@@ -119,18 +92,15 @@ class TuningAction {
 class DbGame : public Game {
  public:
   explicit DbGame(const GameParameters& params);
-  int NumDistinctActions() const override { return kNumCells; }
+  int NumDistinctActions() const override { return std::max(client_.size(), server_.size()); }
   std::unique_ptr<State> NewInitialState() const override {
     return std::unique_ptr<State>(new DbState(shared_from_this()));
   }
-  int NumPlayers() const override { return kNumPlayers; }
-  double MinUtility() const override { return -1; }
+  int NumPlayers() const override { return 2; }
+  double MinUtility() const override { return -999999; }
   double UtilitySum() const override { return 0; }
-  double MaxUtility() const override { return 1; }
-  std::vector<int> ObservationTensorShape() const override {
-    return {kCellStates, kNumRows, kNumCols};
-  }
-  int MaxGameLength() const override { return kNumCells; }
+  double MaxUtility() const override { return 999999; }
+  int MaxGameLength() const override { return 6; }
 
   const std::vector<std::unique_ptr<Txn>> &GetClientActions() const { return client_; }
   const std::vector<std::unique_ptr<TuningAction>> &GetServerActions() const { return server_; }
@@ -139,13 +109,6 @@ class DbGame : public Game {
   std::vector<std::unique_ptr<Txn>> client_;
   std::vector<std::unique_ptr<TuningAction>> server_;
 };
-
-CellState PlayerToState(Player player);
-std::string StateToString(CellState state);
-
-inline std::ostream& operator<<(std::ostream& stream, const CellState& state) {
-  return stream << StateToString(state);
-}
 
 }  // namespace db
 }  // namespace open_spiel
