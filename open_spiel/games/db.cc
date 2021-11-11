@@ -39,18 +39,23 @@ bool IsServer(const Player player) {
 
 struct EstCost {
   public:
-    EstCost(const std::string &explain_str) {
-      std::smatch matches;
+    EstCost(pqxx::result *rset) {
+      for (const auto &r : *rset) {
+        for (const auto &f: r) {
+          std::smatch matches;
+          std::string current_str{pqxx::to_string(f)};
 
-      const std::regex REGEXP{".*\\(cost=(\\d+\\.?\\d+)\\.\\.(\\d+\\.?\\d+) rows=(\\d+) width=(\\d+)\\)"};
-      if (std::regex_match(explain_str, matches, REGEXP)) {
-        startup_cost_ = std::stod(matches[1].str());
-        total_cost_ = std::stod(matches[2].str());
-        num_rows_ = std::stol(matches[3].str());
-        width_ = std::stol(matches[4].str());
-      } else {
-        throw std::runtime_error("EC: Bad explain str");
+          const std::regex REGEXP{".*\\(cost=(\\d+\\.?\\d+)\\.\\.(\\d+\\.?\\d+) rows=(\\d+) width=(\\d+)\\)"};
+          if (std::regex_match(explain_str, matches, REGEXP)) {
+            startup_cost_ = std::stod(matches[1].str());
+            total_cost_ = std::stod(matches[2].str());
+            num_rows_ = std::stol(matches[3].str());
+            width_ = std::stol(matches[4].str());
+            return;
+          }
+        }
       }
+      throw std::runtime_error("EC: Bad input resultset");
     }
 
     friend std::ostream& operator<<(std::ostream& os, const EstCost& cost) {
@@ -71,36 +76,50 @@ struct EstCost {
 
 struct TrueCost {
   public:
-    TrueCost(const std::string &explain_str, const std::string &second_last_row, const std::string &last_row) {
-      std::smatch matches;
+    TrueCost(pqxx::result *rset) {
+      bool done[3] = {false, false, false};
+      for (const auto &r : *rset) {
+        for (const auto &f: r) {
+          std::smatch matches;
+          std::string current_str{pqxx::to_string(f)};
 
-      const std::regex REGEXP{".*\\(cost=(\\d+\\.?\\d+)\\.\\.(\\d+\\.?\\d+) rows=(\\d+) width=(\\d+)\\).*\\(actual time=(\\d+\\.?\\d+)\\.\\.(\\d+\\.?\\d+) rows=(\\d+) loops=(\\d+)\\)"};
-      if (std::regex_match(explain_str, matches, REGEXP)) {
-        startup_cost_ = std::stod(matches[1].str());
-        total_cost_ = std::stod(matches[2].str());
-        num_rows_ = std::stol(matches[3].str());
-        width_ = std::stol(matches[4].str());
-        actual_startup_time_ = std::stod(matches[5].str());
-        actual_total_time_ = std::stod(matches[6].str());
-        actual_num_rows_ = std::stol(matches[7].str());
-        actual_loops_ = std::stol(matches[8].str());
-      } else {
-        throw std::runtime_error("TC: Bad explain str");
-      }
+          if (!done[0]) {
+            const std::regex REGEXP{
+                    ".*\\(cost=(\\d+\\.?\\d+)\\.\\.(\\d+\\.?\\d+) rows=(\\d+) width=(\\d+)\\).*\\(actual time=(\\d+\\.?\\d+)\\.\\.(\\d+\\.?\\d+) rows=(\\d+) loops=(\\d+)\\)"};
+            if (std::regex_match(current_str, matches, REGEXP)) {
+              startup_cost_ = std::stod(matches[1].str());
+              total_cost_ = std::stod(matches[2].str());
+              num_rows_ = std::stol(matches[3].str());
+              width_ = std::stol(matches[4].str());
+              actual_startup_time_ = std::stod(matches[5].str());
+              actual_total_time_ = std::stod(matches[6].str());
+              actual_num_rows_ = std::stol(matches[7].str());
+              actual_loops_ = std::stol(matches[8].str());
+              done[0] = true;
+              continue;
+            }
+          }
 
-      const std::regex REGEXP_PLAN{"Planning Time: (\\d+\\.?\\d+) ms"};
-      if (std::regex_match(second_last_row, matches, REGEXP_PLAN)) {
-        actual_planning_time_ms_ = std::stod(matches[1].str());
-      } else {
-        throw std::runtime_error("TC: Bad planning time str");
-      }
+          if (!done[1]) {
+            const std::regex REGEXP_PLAN{"Planning Time: (\\d+\\.?\\d+) ms"};
+            if (std::regex_match(current_str, matches, REGEXP_PLAN)) {
+              actual_planning_time_ms_ = std::stod(matches[1].str());
+              done[1] = true;
+              continue;
+            }
+          }
 
-      const std::regex REGEXP_EXEC{"Execution Time: (\\d+\\.?\\d+) ms"};
-      if (std::regex_match(last_row, matches, REGEXP_EXEC)) {
-        actual_execution_time_ms_ = std::stod(matches[1].str());
-      } else {
-        throw std::runtime_error("TC: Bad execution time str");
+          if (!done[2]) {
+            const std::regex REGEXP_EXEC{"Execution Time: (\\d+\\.?\\d+) ms"};
+            if (std::regex_match(current_str, matches, REGEXP_EXEC)) {
+              actual_execution_time_ms_ = std::stod(matches[1].str());
+              done[2] = true;
+              return;
+            }
+          }
+        }
       }
+      throw std::runtime_error("TC: Bad input resultset.");
     }
 
     friend std::ostream& operator<<(std::ostream& os, const TrueCost& cost) {
@@ -191,7 +210,7 @@ std::string DbState::ActionToString(Player player,
                                     Action action_id) const {
   const auto &ca = game_->GetClientActions();
   const auto &sa = game_->GetServerActions();
-  const std::string &sql = IsClient(player) ? ca[action_id]->GetSQL() : sa[action_id]->GetSQL();
+  const std::string &sql = IsClient(player) ? ca[action_id]->GetIdentifier() : sa[action_id]->GetSQL();
   return absl::StrCat("Action(id=", action_id, ", player=", player, ", sql=", sql,  ")");
 }
 
@@ -206,7 +225,7 @@ std::string DbState::ToString() const {
 }
 
 bool DbState::IsTerminal() const {
-  return num_moves_ >= game_->MaxGameLength() / 2;
+  return num_moves_ >= game_->MaxGameLength();
 }
 
 std::vector<double> DbState::Returns() const {
@@ -220,13 +239,18 @@ std::vector<double> DbState::Returns() const {
   for (const auto &player_action : history_) {
     const Action action = player_action.action;
     if (IsClient(player_action.player)) {
+      pqxx::subtransaction subtxn(txn);
       // Execute the client query.
-      std::string query = absl::StrCat("EXPLAIN (ANALYZE, BUFFERS) ", client_actions[action]->GetSQL());
-      pqxx::result rset{txn.exec(query)};
-      TrueCost tc{pqxx::to_string(rset[0][0]),
-                  pqxx::to_string(rset[rset.size() - 2][0]),
-                  pqxx::to_string(rset[rset.size() - 1][0])};
-      total_time += tc.actual_planning_time_ms_ + tc.actual_execution_time_ms_;
+      Txn *c_txn = client_actions[action].get();
+      double c_txn_cost = 0;
+      for (const auto &sql: c_txn->GetSQL()) {
+        std::string query = absl::StrCat("EXPLAIN (ANALYZE, BUFFERS) ", sql);
+        pqxx::result rset{subtxn.exec(query)};
+        TrueCost tc{&rset};
+        total_time += (tc.actual_planning_time_ms_ + tc.actual_execution_time_ms_) * c_txn->GetWeight();
+        c_txn_cost += tc.actual_planning_time_ms_ + tc.actual_execution_time_ms_;
+      }
+      std::cout << c_txn->GetIdentifier() << " took " << c_txn_cost << std::endl;
     } else {
       SPIEL_CHECK_TRUE(IsServer(player_action.player));
       std::string query = server_actions[action]->GetSQL();
@@ -235,6 +259,7 @@ std::vector<double> DbState::Returns() const {
       auto t2 = std::chrono::high_resolution_clock::now();
       double time_ms = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
       total_time += time_ms;
+      std::cout << query << " took " << time_ms << std::endl;
     }
   }
   return {total_time, -total_time};
@@ -265,12 +290,18 @@ std::unique_ptr<State> DbState::Clone() const {
 
 DbGame::DbGame(const GameParameters& params)
     : Game(kGameType, params) {
-  client_.emplace_back(std::make_unique<SingleQueryTxn>("select a from foo where a = 5"));
-  client_.emplace_back(std::make_unique<SingleQueryTxn>("select a from foo where a = 10"));
-  client_.emplace_back(std::make_unique<SingleQueryTxn>("select a from foo"));
+  client_.emplace_back(std::make_unique<TPCCNewOrder>());
+  client_.emplace_back(std::make_unique<TPCCPayment>());
+  client_.emplace_back(std::make_unique<TPCCOrderStatus>());
+  client_.emplace_back(std::make_unique<TPCCDelivery>());
+  client_.emplace_back(std::make_unique<TPCCStockLevel>());
 
-  server_.emplace_back(std::make_unique<TuningAction>("create index on foo (a)"));
-  server_.emplace_back(std::make_unique<TuningAction>("create index on bar (a)"));
+  // These two indexes should be created by TPC-C.
+  server_.emplace_back(std::make_unique<TuningAction>("CREATE INDEX IF NOT EXISTS idx_customer_name ON customer (c_w_id, c_d_id, c_last, c_first);"));
+  server_.emplace_back(std::make_unique<TuningAction>("CREATE INDEX IF NOT EXISTS idx_order ON oorder (o_w_id, o_d_id, o_c_id, o_id);"));
+  // Random bullshit.
+  server_.emplace_back(std::make_unique<TuningAction>("CREATE INDEX IF NOT EXISTS garbage_1 ON oorder (o_w_id, o_d_id);"));
+  server_.emplace_back(std::make_unique<TuningAction>("CREATE INDEX IF NOT EXISTS garbage_2 ON foo (a);"));
 }
 
 }  // namespace db

@@ -18,6 +18,9 @@
 #include "open_spiel/abseil-cpp/absl/flags/parse.h"
 #include "open_spiel/abseil-cpp/absl/random/discrete_distribution.h"
 #include "open_spiel/algorithms/cfr.h"
+#include "open_spiel/algorithms/external_sampling_mccfr.h"
+#include "open_spiel/algorithms/outcome_sampling_mccfr.h"
+#include "open_spiel/algorithms/tabular_best_response_mdp.h"
 #include "open_spiel/algorithms/tabular_exploitability.h"
 #include "open_spiel/spiel.h"
 #include "open_spiel/spiel_utils.h"
@@ -40,18 +43,19 @@ int main(int argc, char** argv) {
   absl::ParseCommandLine(argc, argv);
   std::shared_ptr<const open_spiel::Game> game =
       open_spiel::LoadGame(absl::GetFlag(FLAGS_game_name));
-  open_spiel::algorithms::CFRSolver solver(*game);
-  std::cerr << "Starting CFR on " << game->GetType().short_name
-            << "..." << std::endl;
+  // open_spiel::algorithms::CFRSolver solver(*game);
+  open_spiel::algorithms::OutcomeSamplingMCCFRSolver solver(*game);
+  // open_spiel::algorithms::ExternalSamplingMCCFRSolver solver(*game);
+  std::cerr << "Starting CFR on " << game->GetType().short_name << "..." << std::endl;
 
   for (int i = 0; i < absl::GetFlag(FLAGS_num_iters); ++i) {
-    solver.EvaluateAndUpdatePolicy();
+    solver.RunIteration();
     if (i % absl::GetFlag(FLAGS_report_every) == 0 ||
         i == absl::GetFlag(FLAGS_num_iters) - 1) {
-      double exploitability = open_spiel::algorithms::Exploitability(
-          *game, *solver.AveragePolicy());
-      std::cerr << "Iteration " << i << " exploitability=" << exploitability
-                << std::endl;
+      std::shared_ptr<open_spiel::Policy> average_policy = solver.AveragePolicy();
+      open_spiel::algorithms::TabularBestResponseMDP tbr(*game, *average_policy);
+      open_spiel::algorithms::TabularBestResponseMDPInfo br_info = tbr.NashConv();
+      std::cout << i << " " << br_info.nash_conv << std::endl;
 
       std::mt19937 rng(time(0));
       std::cerr << "NEW GAME WITH CURRENT POLICY" << std::endl;
@@ -65,7 +69,7 @@ int main(int argc, char** argv) {
 
         std::vector<open_spiel::Action> actions = state->LegalActions();
         // PrintLegalActions(*state, player, actions);
-        const auto &ap = solver.CurrentPolicy()->GetStatePolicy(*state);
+        const auto &ap = solver.AveragePolicy()->GetStatePolicy(*state);
         std::vector<double> distribution;
         for (const auto &ape : ap) {
           distribution.emplace_back(ape.second);
