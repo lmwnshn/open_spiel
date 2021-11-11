@@ -46,7 +46,7 @@ struct EstCost {
           std::string current_str{pqxx::to_string(f)};
 
           const std::regex REGEXP{".*\\(cost=(\\d+\\.?\\d+)\\.\\.(\\d+\\.?\\d+) rows=(\\d+) width=(\\d+)\\)"};
-          if (std::regex_match(explain_str, matches, REGEXP)) {
+          if (std::regex_match(current_str, matches, REGEXP)) {
             startup_cost_ = std::stod(matches[1].str());
             total_cost_ = std::stod(matches[2].str());
             num_rows_ = std::stol(matches[3].str());
@@ -229,40 +229,58 @@ bool DbState::IsTerminal() const {
 }
 
 std::vector<double> DbState::Returns() const {
-  double total_time = 0;
+  double total_cost = 0;
 
   pqxx::connection conn("host=127.0.0.1 port=5432 dbname=spiel user=spiel password=spiel sslmode=disable application_name=psql");
   pqxx::work txn(conn);
+  txn.exec("select hypopg_reset();");
 
   const auto &client_actions = game_->GetClientActions();
   const auto &server_actions = game_->GetServerActions();
+  bool use_real = false;
+
   for (const auto &player_action : history_) {
     const Action action = player_action.action;
     if (IsClient(player_action.player)) {
       pqxx::subtransaction subtxn(txn);
       // Execute the client query.
       Txn *c_txn = client_actions[action].get();
-      double c_txn_cost = 0;
+      auto t1 = std::chrono::high_resolution_clock::now();
       for (const auto &sql: c_txn->GetSQL()) {
-        std::string query = absl::StrCat("EXPLAIN (ANALYZE, BUFFERS) ", sql);
-        pqxx::result rset{subtxn.exec(query)};
-        TrueCost tc{&rset};
-        total_time += (tc.actual_planning_time_ms_ + tc.actual_execution_time_ms_) * c_txn->GetWeight();
-        c_txn_cost += tc.actual_planning_time_ms_ + tc.actual_execution_time_ms_;
+        if (use_real) {
+          std::string query = absl::StrCat("EXPLAIN (ANALYZE, BUFFERS) ", sql);
+          pqxx::result rset{subtxn.exec(query)};
+          TrueCost tc{&rset};
+          total_cost += (tc.actual_planning_time_ms_ + tc.actual_execution_time_ms_) * c_txn->GetWeight();
+        } else {
+          std::string query = absl::StrCat("EXPLAIN ", sql);
+          pqxx::result rset{subtxn.exec(query)};
+          EstCost ec{&rset};
+          total_cost += ec.total_cost_ * c_txn->GetWeight();
+        }
       }
-      std::cout << c_txn->GetIdentifier() << " took " << c_txn_cost << std::endl;
+      auto t2 = std::chrono::high_resolution_clock::now();
+      double time_ms = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
+      // std::cout << c_txn->GetIdentifier() << " took " << time_ms << std::endl;
     } else {
       SPIEL_CHECK_TRUE(IsServer(player_action.player));
       std::string query = server_actions[action]->GetSQL();
+
+      if (query.find("CREATE INDEX") == 0) {
+        if (!use_real) {
+          query = "SELECT * FROM hypopg_create_index('" + query + "');";
+        }
+      }
+
       auto t1 = std::chrono::high_resolution_clock::now();
-      pqxx::result rset{txn.exec0(query)};
+      pqxx::result rset{txn.exec(query)};
       auto t2 = std::chrono::high_resolution_clock::now();
       double time_ms = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
-      total_time += time_ms;
-      std::cout << query << " took " << time_ms << std::endl;
+      total_cost += time_ms;
+      // std::cout << query << " took " << time_ms << std::endl;
     }
   }
-  return {total_time, -total_time};
+  return {total_cost, -total_cost};
 }
 
 std::string DbState::InformationStateString(Player player) const {
