@@ -230,14 +230,18 @@ bool DbState::IsTerminal() const {
 
 std::vector<double> DbState::Returns() const {
   double total_cost = 0;
+  double runtime_micros = 0;
 
   pqxx::connection conn("host=127.0.0.1 port=5432 dbname=spiel user=spiel password=spiel sslmode=disable application_name=psql");
   pqxx::work txn(conn);
-  txn.exec("select hypopg_reset();");
 
   const auto &client_actions = game_->GetClientActions();
   const auto &server_actions = game_->GetServerActions();
-  bool use_real = false;
+  bool use_real = true;
+
+  if (!use_real) {
+    txn.exec("select hypopg_reset();");
+  }
 
   for (const auto &player_action : history_) {
     const Action action = player_action.action;
@@ -260,8 +264,9 @@ std::vector<double> DbState::Returns() const {
         }
       }
       auto t2 = std::chrono::high_resolution_clock::now();
-      double time_ms = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
+      double time_micros = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
       // std::cout << c_txn->GetIdentifier() << " took " << time_ms << std::endl;
+      runtime_micros += time_micros;
     } else {
       SPIEL_CHECK_TRUE(IsServer(player_action.player));
       std::string query = server_actions[action]->GetSQL();
@@ -275,11 +280,14 @@ std::vector<double> DbState::Returns() const {
       auto t1 = std::chrono::high_resolution_clock::now();
       pqxx::result rset{txn.exec(query)};
       auto t2 = std::chrono::high_resolution_clock::now();
-      double time_ms = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
+      double time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
+      double time_micros = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
       total_cost += time_ms;
       // std::cout << query << " took " << time_ms << std::endl;
+      runtime_micros += time_micros;
     }
   }
+  std::cout << "total runtime microsec " << runtime_micros << " cost " << total_cost << std::endl;
   return {total_cost, -total_cost};
 }
 
@@ -315,6 +323,7 @@ DbGame::DbGame(const GameParameters& params)
   client_.emplace_back(std::make_unique<TPCCStockLevel>());
 
   // These two indexes should be created by TPC-C.
+  server_.emplace_back(std::make_unique<TuningAction>("SELECT 1;"));
   server_.emplace_back(std::make_unique<TuningAction>("CREATE INDEX IF NOT EXISTS idx_customer_name ON customer (c_w_id, c_d_id, c_last, c_first);"));
   server_.emplace_back(std::make_unique<TuningAction>("CREATE INDEX IF NOT EXISTS idx_order ON oorder (o_w_id, o_d_id, o_c_id, o_id);"));
   // Random bullshit.

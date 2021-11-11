@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
   // open_spiel::algorithms::CFRSolver solver(*game);
   open_spiel::algorithms::OutcomeSamplingMCCFRSolver solver(*game);
   // open_spiel::algorithms::ExternalSamplingMCCFRSolver solver(*game);
-  std::cerr << "Starting CFR on " << game->GetType().short_name << "..." << std::endl;
+  std::cerr << "Starting (some kinda) CFR on " << game->GetType().short_name << "..." << std::endl;
 
   for (int i = 0; i < absl::GetFlag(FLAGS_num_iters); ++i) {
     solver.RunIteration();
