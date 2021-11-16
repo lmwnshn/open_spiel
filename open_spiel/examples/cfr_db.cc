@@ -26,8 +26,8 @@
 #include "open_spiel/spiel_utils.h"
 
 ABSL_FLAG(std::string, game_name, "db", "Game to run CFR on.");
-ABSL_FLAG(int, num_iters, 1000, "How many iters to run for.");
-ABSL_FLAG(int, report_every, 10, "How often to report exploitability.");
+ABSL_FLAG(int, num_iters, 100000, "How many iters to run for.");
+ABSL_FLAG(int, report_every, 10, "How often to report.");
 
 void PrintLegalActions(const open_spiel::State& state,
                        open_spiel::Player player,
@@ -52,48 +52,51 @@ int main(int argc, char** argv) {
     solver.RunIteration();
     if (i % absl::GetFlag(FLAGS_report_every) == 0 ||
         i == absl::GetFlag(FLAGS_num_iters) - 1) {
-      std::shared_ptr<open_spiel::Policy> average_policy = solver.AveragePolicy();
+      std::shared_ptr <open_spiel::Policy> average_policy = solver.AveragePolicy();
       open_spiel::algorithms::TabularBestResponseMDP tbr(*game, *average_policy);
-      open_spiel::algorithms::TabularBestResponseMDPInfo br_info = tbr.NashConv();
-      std::cout << i << " " << br_info.nash_conv << std::endl;
+      // TODO(WAN): Computing the NashConv takes an incredibly long time.
+      // open_spiel::algorithms::TabularBestResponseMDPInfo br_info = tbr.NashConv();
+      std::cout << i << std::endl; // << " " << br_info.nash_conv << std::endl;
 
-      std::mt19937 rng(time(0));
-      std::cerr << "NEW GAME WITH CURRENT POLICY" << std::endl;
-      std::unique_ptr<open_spiel::State> state = game->NewInitialState();
+      if (i % 50 == 0) {
+        std::mt19937 rng(time(0));
+        std::cerr << "NEW GAME WITH CURRENT POLICY" << std::endl;
+        std::unique_ptr <open_spiel::State> state = game->NewInitialState();
 
-      while (!state->IsTerminal()) {
-        // std::cerr << "player " << state->CurrentPlayer() << std::endl;
+        while (!state->IsTerminal()) {
+          // std::cerr << "player " << state->CurrentPlayer() << std::endl;
 
-        // Decision node, sample one uniformly.
-        auto player = state->CurrentPlayer();
+          // Decision node, sample one uniformly.
+          auto player = state->CurrentPlayer();
 
-        std::vector<open_spiel::Action> actions = state->LegalActions();
-        // PrintLegalActions(*state, player, actions);
-        const auto &ap = solver.AveragePolicy()->GetStatePolicy(*state);
-        std::vector<double> distribution;
-        for (const auto &ape : ap) {
-          distribution.emplace_back(ape.second);
+          std::vector <open_spiel::Action> actions = state->LegalActions();
+          // PrintLegalActions(*state, player, actions);
+          const auto &ap = solver.AveragePolicy()->GetStatePolicy(*state);
+          std::vector<double> distribution;
+          for (const auto &ape: ap) {
+            distribution.emplace_back(ape.second);
+          }
+          absl::discrete_distribution<> dis(distribution.begin(), distribution.end());
+
+          auto action = actions[dis(rng)];
+
+          std::ostringstream ostr;
+          ostr << "distribution[";
+          for (const auto d: distribution) {
+            ostr << d << ',';
+          }
+          ostr << "]";
+          std::cerr << "\tChose action: " << state->ActionToString(player, action) << " " << ostr.str() << std::endl;
+
+          state->ApplyAction(action);
         }
-        absl::discrete_distribution<> dis(distribution.begin(), distribution.end());
 
-        auto action = actions[dis(rng)];
+        std::cerr << "\tState: " << state->ToString() << std::endl;
 
-        std::ostringstream ostr;
-        ostr << "distribution[";
-        for (const auto d : distribution) {
-          ostr << d << ',';
+        const auto &returns = state->Returns();
+        for (auto p = open_spiel::Player{0}; p < game->NumPlayers(); p++) {
+          std::cerr << "\tFinal return to player " << p << " is " << returns[p] << std::endl;
         }
-        ostr << "]";
-        std::cerr << "\tChose action: " << state->ActionToString(player, action) << " " << ostr.str() << std::endl;
-
-        state->ApplyAction(action);
-      }
-
-      std::cerr << "\tState: " << state->ToString() << std::endl;
-
-      const auto &returns = state->Returns();
-      for (auto p = open_spiel::Player{0}; p < game->NumPlayers(); p++) {
-        std::cerr << "\tFinal return to player " << p << " is " << returns[p] << std::endl;
       }
     }
   }

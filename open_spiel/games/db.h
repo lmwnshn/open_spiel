@@ -60,8 +60,14 @@ class DbState : public State {
   void DoApplyAction(Action move) override;
 
  private:
-  Player current_player_ = 0;         // Player zero goes first
-  int num_moves_ = 0;
+  Player current_player_ = 1;         // Player zero (Client) goes first
+
+  int num_server_actions_ = 0;
+  int num_client_actions_ = 0;
+  int num_server_actions_this_turn_ = 0;
+  int num_client_actions_this_turn_ = 0;
+
+  std::unordered_set<size_t> client_actions_forcer_;
 
   std::shared_ptr<const DbGame> game_;
   std::set<Action> server_actions_;
@@ -256,7 +262,12 @@ class DbGame : public Game {
   double MinUtility() const override { return -100000; }
   double UtilitySum() const override { return 0; }
   double MaxUtility() const override { return 100000; }
-  int MaxGameLength() const override { return 10; }
+  int MaxGameLength() const override { return MaxServerMoves() * MaxClientMovesPerTurn() * MaxServerMovesPerTurn(); }
+
+  int MaxClientMovesPerTurn() const { return 12; }
+  int MaxServerMovesPerTurn() const { return 1; }
+  int MaxServerMoves() const { return 3; }
+  bool UseRealCost() const { return true; }
 
   const std::vector<std::unique_ptr<Txn>> &GetClientActions() const { return client_; }
   const std::vector<std::unique_ptr<TuningAction>> &GetServerActions() const { return server_; }

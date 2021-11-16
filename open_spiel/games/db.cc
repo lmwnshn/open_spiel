@@ -177,8 +177,23 @@ REGISTER_SPIEL_GAME(kGameType, Factory);
 }  // namespace
 
 void DbState::DoApplyAction(Action move) {
-  current_player_ = 1 - current_player_;
-  num_moves_ += 1;
+  if (IsClient(current_player_)) {
+    num_client_actions_this_turn_++;
+    num_client_actions_++;
+    client_actions_forcer_.insert(move);
+    if (num_client_actions_this_turn_ >= game_->MaxClientMovesPerTurn()) {
+      current_player_ = 1 - current_player_;
+      num_client_actions_this_turn_ = 0;
+      client_actions_forcer_.clear();
+    }
+  } else {
+    num_server_actions_this_turn_++;
+    num_server_actions_++;
+    if (num_server_actions_this_turn_ >= game_->MaxServerMovesPerTurn()) {
+      current_player_ = 1 - current_player_;
+      num_server_actions_this_turn_ = 0;
+    }
+  }
 }
 
 std::vector<Action> DbState::LegalActions() const {
@@ -197,6 +212,9 @@ std::vector<Action> DbState::LegalActions() const {
     SPIEL_CHECK_TRUE(IsClient(current_player_));
     moves.reserve(ca.size());
     for (size_t i = 0 ; i < ca.size(); ++i) {
+      if (client_actions_forcer_.count(i) == 0) {
+        return {i};
+      }
       moves.emplace_back(i);
     }
   }
@@ -225,7 +243,7 @@ std::string DbState::ToString() const {
 }
 
 bool DbState::IsTerminal() const {
-  return num_moves_ >= game_->MaxGameLength();
+  return num_server_actions_ >= game_->MaxServerMoves();
 }
 
 std::vector<double> DbState::Returns() const {
@@ -237,7 +255,7 @@ std::vector<double> DbState::Returns() const {
 
   const auto &client_actions = game_->GetClientActions();
   const auto &server_actions = game_->GetServerActions();
-  bool use_real = true;
+  bool use_real = game_->UseRealCost();
 
   if (!use_real) {
     txn.exec("select hypopg_reset();");
@@ -287,7 +305,7 @@ std::vector<double> DbState::Returns() const {
       runtime_micros += time_micros;
     }
   }
-  std::cout << "total runtime microsec " << runtime_micros << " cost " << total_cost << std::endl;
+//  std::cout << "total runtime microsec " << runtime_micros << " cost " << total_cost << std::endl;
   return {total_cost, -total_cost};
 }
 
@@ -305,7 +323,6 @@ std::string DbState::ObservationString(Player player) const {
 
 void DbState::UndoAction(Player player, Action move) {
   current_player_ = player;
-  num_moves_ -= 1;
   history_.pop_back();
   --move_number_;
 }
@@ -316,11 +333,12 @@ std::unique_ptr<State> DbState::Clone() const {
 
 DbGame::DbGame(const GameParameters& params)
     : Game(kGameType, params) {
-  client_.emplace_back(std::make_unique<TPCCNewOrder>());
-  client_.emplace_back(std::make_unique<TPCCPayment>());
-  client_.emplace_back(std::make_unique<TPCCOrderStatus>());
-  client_.emplace_back(std::make_unique<TPCCDelivery>());
-  client_.emplace_back(std::make_unique<TPCCStockLevel>());
+  client_.emplace_back(std::make_unique<SingleQueryTxn>("SELECT 1;"));
+  client_.emplace_back(std::make_unique<TPCCNewOrder>(45000000));
+  client_.emplace_back(std::make_unique<TPCCPayment>(43000000));
+  client_.emplace_back(std::make_unique<TPCCOrderStatus>(4000000));
+  client_.emplace_back(std::make_unique<TPCCDelivery>(4000000));
+  client_.emplace_back(std::make_unique<TPCCStockLevel>(4000000));
 
   // These two indexes should be created by TPC-C.
   server_.emplace_back(std::make_unique<TuningAction>("SELECT 1;"));
