@@ -355,8 +355,13 @@ DbGame::DbGame(const GameParameters& params)
   server_.emplace_back(std::make_unique<TuningAction>("CREATE INDEX IF NOT EXISTS idx_customer_name ON customer (c_w_id, c_d_id, c_last, c_first);"));
   server_.emplace_back(std::make_unique<TuningAction>("CREATE INDEX IF NOT EXISTS idx_order ON oorder (o_w_id, o_d_id, o_c_id, o_id);"));
   // Random bullshit.
-  server_.emplace_back(std::make_unique<TuningAction>("CREATE INDEX IF NOT EXISTS garbage_1 ON oorder (o_w_id, o_d_id);"));
+  server_.emplace_back(std::make_unique<TuningAction>("CREATE INDEX IF NOT EXISTS garbage_1 ON oorder (o_w_id, o_carrier_id, o_ol_cnt);"));
   server_.emplace_back(std::make_unique<TuningAction>("CREATE INDEX IF NOT EXISTS garbage_2 ON foo (a);"));
+  server_.emplace_back(std::make_unique<TuningAction>("CREATE INDEX IF NOT EXISTS garbage_3 ON stock (s_w_id, s_i_id);"));
+  server_.emplace_back(std::make_unique<TuningAction>("CREATE INDEX IF NOT EXISTS garbage_4 ON district (d_w_id, d_id);"));
+  server_.emplace_back(std::make_unique<TuningAction>("CREATE INDEX IF NOT EXISTS garbage_5 ON warehouse (w_name);"));
+  server_.emplace_back(std::make_unique<TuningAction>("CREATE INDEX IF NOT EXISTS garbage_6 ON item (i_price, i_data);"));
+  server_.emplace_back(std::make_unique<TuningAction>("CREATE INDEX IF NOT EXISTS garbage_7 ON history (h_c_id, h_c_d_id, h_c_w_id);"));
 }
 
 }  // namespace db
