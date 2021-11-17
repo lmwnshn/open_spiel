@@ -267,7 +267,7 @@ class DbGame : public Game {
 
   int MaxClientMovesPerTurn() const { return 12; }
   int MaxServerMovesPerTurn() const { return 1; }
-  int MaxServerMoves() const { return 2; }
+  int MaxServerMoves() const { return 1; }
   bool UseRealCost() const { return true; }
 
   const std::vector<std::unique_ptr<Txn>> &GetClientActions() const { return client_; }
