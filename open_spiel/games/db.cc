@@ -344,11 +344,11 @@ DbGame::DbGame(const GameParameters& params)
 //  server_.emplace_back(std::make_unique<TuningAction>("CREATE INDEX ON bar(a)"));
 
   client_.emplace_back(std::make_unique<SingleQueryTxn>("SELECT 1;"));
-  client_.emplace_back(std::make_unique<TPCCNewOrder>(45000000));
-  client_.emplace_back(std::make_unique<TPCCPayment>(43000000));
-  client_.emplace_back(std::make_unique<TPCCOrderStatus>(4000000));
-  client_.emplace_back(std::make_unique<TPCCDelivery>(4000000));
-  client_.emplace_back(std::make_unique<TPCCStockLevel>(4000000));
+  client_.emplace_back(std::make_unique<TPCCNewOrder>(45000000000));
+  client_.emplace_back(std::make_unique<TPCCPayment>(43000000000));
+  client_.emplace_back(std::make_unique<TPCCOrderStatus>(4000000000));
+  client_.emplace_back(std::make_unique<TPCCDelivery>(4000000000));
+  client_.emplace_back(std::make_unique<TPCCStockLevel>(4000000000));
 
   // These two indexes should be created by TPC-C.
   server_.emplace_back(std::make_unique<TuningAction>("SELECT 1;"));
