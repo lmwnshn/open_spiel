@@ -185,6 +185,9 @@ void DbState::DoApplyAction(Action move) {
       current_player_ = 1 - current_player_;
       num_client_actions_this_turn_ = 0;
       client_actions_forcer_.clear();
+      if (num_server_actions_ >= game_->MaxServerMoves()) {
+        finished_ = true;
+      }
     }
   } else {
     num_server_actions_this_turn_++;
@@ -212,6 +215,7 @@ std::vector<Action> DbState::LegalActions() const {
     SPIEL_CHECK_TRUE(IsClient(current_player_));
     moves.reserve(ca.size());
     for (size_t i = 0 ; i < ca.size(); ++i) {
+      // While building DbState::LegalActions for client
       if (client_actions_forcer_.count(i) == 0) {
         return {i};
       }
@@ -243,7 +247,7 @@ std::string DbState::ToString() const {
 }
 
 bool DbState::IsTerminal() const {
-  return num_server_actions_ >= game_->MaxServerMoves();
+  return finished_;
 }
 
 std::vector<double> DbState::Returns() const {
@@ -333,6 +337,12 @@ std::unique_ptr<State> DbState::Clone() const {
 
 DbGame::DbGame(const GameParameters& params)
     : Game(kGameType, params) {
+//  client_.emplace_back(std::make_unique<SingleQueryTxn>("SELECT a FROM foo WHERE a=5", 1000000));
+//  client_.emplace_back(std::make_unique<SingleQueryTxn>("SELECT a FROM foo WHERE a=10", 1000000));
+//  client_.emplace_back(std::make_unique<SingleQueryTxn>("SELECT a FROM foo", 1000000));
+//  server_.emplace_back(std::make_unique<TuningAction>("CREATE INDEX ON foo(a)"));
+//  server_.emplace_back(std::make_unique<TuningAction>("CREATE INDEX ON bar(a)"));
+
   client_.emplace_back(std::make_unique<SingleQueryTxn>("SELECT 1;"));
   client_.emplace_back(std::make_unique<TPCCNewOrder>(45000000));
   client_.emplace_back(std::make_unique<TPCCPayment>(43000000));

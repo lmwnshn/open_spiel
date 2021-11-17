@@ -26,7 +26,7 @@ import pyspiel
 from open_spiel.python.visualizations import treeviz
 
 FLAGS = flags.FLAGS
-flags.DEFINE_string("game", "kuhn_poker", "Name of the game")
+flags.DEFINE_string("game", "db", "Name of the game")
 flags.DEFINE_string("out", "/tmp/gametree.png", "Name of output file, e.g., "
                     "[*.png|*.pdf].")
 flags.DEFINE_enum("prog", "dot", ["dot", "neato", "circo"], "Graphviz layout.")

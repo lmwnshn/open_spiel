@@ -61,6 +61,7 @@ class DbState : public State {
 
  private:
   Player current_player_ = 1;         // Player zero (Client) goes first
+  bool finished_ = false;
 
   int num_server_actions_ = 0;
   int num_client_actions_ = 0;
@@ -87,7 +88,7 @@ class Txn {
 
 class SingleQueryTxn : public Txn {
  public:
-  SingleQueryTxn(std::string sql, std::string identifier="SQ", double weight=1) : Txn(std::move(identifier), weight) {
+  SingleQueryTxn(std::string sql, double weight=1) : Txn(sql, weight) {
     sql_.emplace_back(std::move(sql));
   }
 };
@@ -266,7 +267,7 @@ class DbGame : public Game {
 
   int MaxClientMovesPerTurn() const { return 12; }
   int MaxServerMovesPerTurn() const { return 1; }
-  int MaxServerMoves() const { return 3; }
+  int MaxServerMoves() const { return 2; }
   bool UseRealCost() const { return true; }
 
   const std::vector<std::unique_ptr<Txn>> &GetClientActions() const { return client_; }

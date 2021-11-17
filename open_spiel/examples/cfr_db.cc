@@ -26,8 +26,8 @@
 #include "open_spiel/spiel_utils.h"
 
 ABSL_FLAG(std::string, game_name, "db", "Game to run CFR on.");
-ABSL_FLAG(int, num_iters, 100000, "How many iters to run for.");
-ABSL_FLAG(int, report_every, 10, "How often to report.");
+ABSL_FLAG(int, num_iters, 10000, "How many iters to run for.");
+ABSL_FLAG(int, report_every, 50, "How often to report.");
 
 void PrintLegalActions(const open_spiel::State& state,
                        open_spiel::Player player,
@@ -49,6 +49,7 @@ int main(int argc, char** argv) {
   std::cerr << "Starting (some kinda) CFR on " << game->GetType().short_name << "..." << std::endl;
 
   for (int i = 0; i < absl::GetFlag(FLAGS_num_iters); ++i) {
+    // solver.EvaluateAndUpdatePolicy();
     solver.RunIteration();
     if (i % absl::GetFlag(FLAGS_report_every) == 0 ||
         i == absl::GetFlag(FLAGS_num_iters) - 1) {
