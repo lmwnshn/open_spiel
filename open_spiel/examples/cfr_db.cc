@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <chrono>
+#include <ctime>
 #include <string>
 
 #include "open_spiel/abseil-cpp/absl/flags/flag.h"
@@ -53,11 +55,14 @@ int main(int argc, char** argv) {
     solver.RunIteration();
     if (i % absl::GetFlag(FLAGS_report_every) == 0 ||
         i == absl::GetFlag(FLAGS_num_iters) - 1) {
-      std::shared_ptr <open_spiel::Policy> average_policy = solver.AveragePolicy();
-      open_spiel::algorithms::TabularBestResponseMDP tbr(*game, *average_policy);
+      // std::shared_ptr <open_spiel::Policy> average_policy = solver.AveragePolicy();
+      // open_spiel::algorithms::TabularBestResponseMDP tbr(*game, *average_policy);
       // TODO(WAN): Computing the NashConv takes an incredibly long time.
       // open_spiel::algorithms::TabularBestResponseMDPInfo br_info = tbr.NashConv();
-      std::cout << i << std::endl; // << " " << br_info.nash_conv << std::endl;
+      // std::cout << i << " " << br_info.nash_conv << std::endl;
+
+      auto cur_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+      std::cout << "Iteration " << i << " " << std::ctime(&cur_time);
 
       if (i % 50 == 0) {
         std::mt19937 rng(time(0));
