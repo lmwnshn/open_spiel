@@ -180,6 +180,18 @@ void DbState::DoApplyAction(Action move) {
   if (IsClient(current_player_)) {
     num_client_actions_this_turn_++;
     num_client_actions_++;
+    if (!tpcc_deck_.empty()) {
+      SPIEL_CHECK_TRUE(tpcc_deck_.back() == move);
+      tpcc_deck_.pop_back();
+
+      if (tpcc_deck_.empty()) {
+        for (int i = 0; i < 10; ++i) { tpcc_deck_.emplace_back(0); }
+        for (int i = 0; i < 10; ++i) { tpcc_deck_.emplace_back(1); }
+        tpcc_deck_.emplace_back(2);
+        tpcc_deck_.emplace_back(3);
+        tpcc_deck_.emplace_back(4);
+      }
+    }
     client_actions_forcer_.insert(move);
     if (num_client_actions_this_turn_ >= game_->MaxClientMovesPerTurn()) {
       current_player_ = 1 - current_player_;
@@ -215,10 +227,13 @@ std::vector<Action> DbState::LegalActions() const {
     SPIEL_CHECK_TRUE(IsClient(current_player_));
     moves.reserve(ca.size());
     for (size_t i = 0 ; i < ca.size(); ++i) {
-      // While building DbState::LegalActions for client
-      if (client_actions_forcer_.count(i) == 0) {
-        return {i};
+      if (tpcc_deck_.size() != 0) {
+        return {tpcc_deck_.back()};
       }
+      // While building DbState::LegalActions for client
+//      if (client_actions_forcer_.count(i) == 0) {
+//        return {i};
+//      }
       moves.emplace_back(i);
     }
   }
@@ -226,7 +241,13 @@ std::vector<Action> DbState::LegalActions() const {
   return moves;
 }
 
-DbState::DbState(std::shared_ptr<const Game> game) : State(game), game_(std::dynamic_pointer_cast<const DbGame>(game)) {}
+DbState::DbState(std::shared_ptr<const Game> game) : State(game), game_(std::dynamic_pointer_cast<const DbGame>(game)) {
+  for (int i = 0; i < 10; ++i) { tpcc_deck_.emplace_back(0); }
+  for (int i = 0; i < 10; ++i) { tpcc_deck_.emplace_back(1); }
+  tpcc_deck_.emplace_back(2);
+  tpcc_deck_.emplace_back(3);
+  tpcc_deck_.emplace_back(4);
+}
 
 std::string DbState::ActionToString(Player player,
                                     Action action_id) const {
@@ -304,7 +325,7 @@ std::vector<double> DbState::Returns() const {
       auto t2 = std::chrono::high_resolution_clock::now();
       double time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
       double time_micros = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
-      total_cost += time_ms;
+      // total_cost += time_ms;
       // std::cout << query << " took " << time_ms << std::endl;
       runtime_micros += time_micros;
     }
@@ -343,12 +364,12 @@ DbGame::DbGame(const GameParameters& params)
 //  server_.emplace_back(std::make_unique<TuningAction>("CREATE INDEX ON foo(a)"));
 //  server_.emplace_back(std::make_unique<TuningAction>("CREATE INDEX ON bar(a)"));
 
-  client_.emplace_back(std::make_unique<SingleQueryTxn>("SELECT 1;"));
-  client_.emplace_back(std::make_unique<TPCCNewOrder>(45000000000));
-  client_.emplace_back(std::make_unique<TPCCPayment>(43000000000));
-  client_.emplace_back(std::make_unique<TPCCOrderStatus>(4000000000));
-  client_.emplace_back(std::make_unique<TPCCDelivery>(4000000000));
-  client_.emplace_back(std::make_unique<TPCCStockLevel>(4000000000));
+//  client_.emplace_back(std::make_unique<SingleQueryTxn>("SELECT 1;"));
+  client_.emplace_back(std::make_unique<TPCCNewOrder>(1000000));
+  client_.emplace_back(std::make_unique<TPCCPayment>(1000000));
+  client_.emplace_back(std::make_unique<TPCCOrderStatus>(1000000));
+  client_.emplace_back(std::make_unique<TPCCDelivery>(1000000));
+  client_.emplace_back(std::make_unique<TPCCStockLevel>(1000000));
 
   // These two indexes should be created by TPC-C.
   server_.emplace_back(std::make_unique<TuningAction>("SELECT 1;"));

@@ -69,6 +69,7 @@ class DbState : public State {
   int num_client_actions_this_turn_ = 0;
 
   std::unordered_set<size_t> client_actions_forcer_;
+  std::vector<size_t> tpcc_deck_;
 
   std::shared_ptr<const DbGame> game_;
   std::set<Action> server_actions_;
@@ -265,7 +266,7 @@ class DbGame : public Game {
   double MaxUtility() const override { return 100000; }
   int MaxGameLength() const override { return MaxServerMoves() * MaxClientMovesPerTurn() * MaxServerMovesPerTurn(); }
 
-  int MaxClientMovesPerTurn() const { return 12; }
+  int MaxClientMovesPerTurn() const { return 23; }
   int MaxServerMovesPerTurn() const { return 1; }
   int MaxServerMoves() const { return 1; }
   bool UseRealCost() const { return true; }
