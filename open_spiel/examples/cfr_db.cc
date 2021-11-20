@@ -29,7 +29,7 @@
 
 ABSL_FLAG(std::string, game_name, "db", "Game to run CFR on.");
 ABSL_FLAG(int, num_iters, 10005, "How many iters to run for.");
-ABSL_FLAG(int, report_every, 50, "How often to report.");
+ABSL_FLAG(int, report_every, 1, "How often to report.");
 
 void PrintLegalActions(const open_spiel::State& state,
                        open_spiel::Player player,
@@ -64,7 +64,7 @@ int main(int argc, char** argv) {
       auto cur_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
       std::cout << "Iteration " << i << " " << std::ctime(&cur_time);
 
-      if (i % 50 == 0) {
+      if (true) {
         std::mt19937 rng(time(0));
         std::cerr << "NEW GAME WITH CURRENT POLICY" << std::endl;
         std::unique_ptr <open_spiel::State> state = game->NewInitialState();
