@@ -1,3 +1,16 @@
+# WAN-CMAKE: Disable all bots except human bot to improve build speed.
+
+if (${WAN_BUILD_FAST}) # WAN-CMAKE-IF
+
+add_library (bots OBJECT
+  human/human_bot.cc
+  human/human_bot.h
+)
+
+add_subdirectory(human)
+
+else() # WAN-CMAKE-ELSE
+
 add_library (bots OBJECT
   gin_rummy/simple_gin_rummy_bot.cc
   gin_rummy/simple_gin_rummy_bot.h
@@ -19,3 +32,4 @@ if (OPEN_SPIEL_BUILD_WITH_XINXIN)
   add_subdirectory(xinxin)
 endif()
 
+endif() # WAN-CMAKE-ENDIF

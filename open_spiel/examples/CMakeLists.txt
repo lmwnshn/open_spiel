@@ -1,3 +1,7 @@
+# WAN-CMAKE: Disable all the other game examples to improve build speed.
+
+if (NOT ${WAN_BUILD_FAST}) # WAN-CMAKE-IF
+
 add_executable(benchmark_game benchmark_game.cc ${OPEN_SPIEL_OBJECTS})
 add_test(benchmark_game_test benchmark_game --game=tic_tac_toe --sims=100 --attempts=2)
 
@@ -61,3 +65,5 @@ if (OPEN_SPIEL_BUILD_WITH_LIBTORCH)
                 $<TARGET_OBJECTS:dqn_torch>)
   target_link_libraries (dqn_torch_example ${TORCH_LIBRARIES})
 endif ()
+
+endif() # WAN-CMAKE-ENDIF

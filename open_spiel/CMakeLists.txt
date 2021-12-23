@@ -136,6 +136,9 @@ openspiel_optional_dependency(OPEN_SPIEL_ENABLE_PYTHON_MISC       OFF
 openspiel_optional_dependency(OPEN_SPIEL_BUILDING_WHEEL           OFF
   "Building a Python wheel?")
 
+# WAN-CMAKE: Add a flag to build faster by skipping non-database games.
+openspiel_optional_dependency(WAN_BUILD_FAST                      OFF
+  "Only build the database game.")
 
 # Needed to disable Abseil tests.
 set (BUILD_TESTING OFF)
@@ -187,6 +190,7 @@ link_libraries(open_spiel_core
   absl::str_format
   absl::strings
   absl::time
+  pqxx # WAN-CMAKE: Add pqxx dependency for invoking SQL.
 )
 
 # Just the minimal base library: no games.

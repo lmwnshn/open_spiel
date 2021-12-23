@@ -45,6 +45,8 @@ ArgsLibAddArg build_only bool false 'Builds only the library, without running te
 ArgsLibAddArg test_only string "all" 'Build and runs the tests matching this string (use "all" to run all tests)'
 ArgsLibAddArg build_dir string "build" 'Location of the build directory.'
 ArgsLibAddArg num_threads int -1 'Number of threads to use when paralellizing build / tests. (Defaults to 4*<number of CPUs>)'
+ArgsLibAddArg wan_build_type string "Testing" 'The type of build, e.g., Debug or Release or Testing. Default is Testing.'
+ArgsLibAddArg wan_build_fast bool false 'Whether to enable WAN_BUILD_FAST, which avoids building non-DB stuff.'
 ArgsLibParse $@
 
 function die() {
@@ -198,7 +200,7 @@ else
   cmake -DPython3_EXECUTABLE=${PYBIN} \
         -DCMAKE_CXX_COMPILER=${CXX}                  \
         -DCMAKE_PREFIX_PATH=${LIBCXXWRAP_JULIA_DIR}  \
-        -DBUILD_TYPE=Testing                         \
+        -DBUILD_TYPE=${ARG_wan_build_type}           \
         ../open_spiel
 
   if [ "$ARG_test_only" != "all" ]

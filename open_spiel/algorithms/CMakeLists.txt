@@ -80,6 +80,10 @@ add_library (algorithms OBJECT
 )
 target_include_directories (algorithms PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
+# WAN-CMAKE: Disable all algorithm tests to improve build speed.
+
+if (NOT ${WAN_BUILD_FAST}) # WAN-CMAKE-IF
+
 if (${OPEN_SPIEL_BUILD_WITH_ORTOOLS})
   add_subdirectory (ortools)
 endif()
@@ -183,3 +187,5 @@ add_test(trajectories_test trajectories_test)
 add_subdirectory (alpha_zero)
 add_subdirectory (alpha_zero_torch)
 add_subdirectory (dqn_torch)
+
+endif() # WAN-CMAKE-ENDIF

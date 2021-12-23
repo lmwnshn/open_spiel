@@ -29,6 +29,10 @@ add_library (utils OBJECT
 )
 target_include_directories (utils PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
+# WAN-CMAKE: Disable all utils tests to improve build speed.
+
+if (NOT ${WAN_BUILD_FAST}) # WAN-CMAKE-IF
+
 add_executable(circular_buffer_test circular_buffer_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>)
 add_test(circular_buffer_test circular_buffer_test)
@@ -100,3 +104,5 @@ add_test(tensor_view_test tensor_view_test)
 add_executable(threaded_queue_test threaded_queue_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>)
 add_test(threaded_queue_test threaded_queue_test)
+
+endif() # WAN-CMAKE-ENDIF

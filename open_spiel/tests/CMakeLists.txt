@@ -4,6 +4,10 @@ add_library (tests OBJECT
 )
 target_include_directories (tests PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
+# WAN-CMAKE: Disable other tests to improve build speed.
+
+if (NOT ${WAN_BUILD_FAST}) # WAN-CMAKE-IF
+
 add_executable(spiel_test spiel_test.cc
                $<TARGET_OBJECTS:tests> ${OPEN_SPIEL_OBJECTS})
 add_test(spiel_test spiel_test)
@@ -18,3 +22,4 @@ if (BUILD_SHARED_LIB)
   add_test(shared_lib_test shared_lib_test)
 endif()
 
+endif() # WAN-CMAKE-ENDIF

@@ -147,6 +147,19 @@ if (${OPEN_SPIEL_BUILD_WITH_ACPC})
   set(GAME_SOURCES ${GAME_SOURCES} universal_poker.cc universal_poker.h)
 endif()
 
+# WAN-CMAKE: Overwrite GAME_SOURCES to improve build speed.
+if (${WAN_BUILD_FAST}) # WAN-CMAKE-IF
+set(GAME_SOURCES
+  database.cc
+  database.h
+)
+else() # WAN-CMAKE-ELSE
+list(APPEND GAME_SOURCES
+  database.cc
+  database.h
+)
+endif() # WAN-CMAKE-ENDIF
+
 add_library (games OBJECT ${GAME_SOURCES})
 
 target_include_directories (games PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -226,6 +239,9 @@ add_library(bridge_double_dummy_solver OBJECT
 )
 target_include_directories (bridge_double_dummy_solver PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(bridge_double_dummy_solver PUBLIC DDS_NO_STATIC_INIT)
+
+# WAN-CMAKE: Avoid building other games to improve build speed.
+if (NOT ${WAN_BUILD_FAST}) # WAN-CMAKE-IF
 
 add_executable(backgammon_test backgammon_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>)
@@ -490,3 +506,4 @@ add_executable(y_test y_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>)
 add_test(y_test y_test)
 
+endif() # WAN-CMAKE-ENDIF
