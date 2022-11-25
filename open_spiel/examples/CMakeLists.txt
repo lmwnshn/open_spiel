@@ -1,3 +1,7 @@
+# WAN-CMAKE: Add the database game.
+
+add_executable(database_game database_game.cc ${OPEN_SPIEL_OBJECTS})
+
 # WAN-CMAKE: Disable all the other game examples to improve build speed.
 
 if (NOT ${WAN_BUILD_FAST}) # WAN-CMAKE-IF
